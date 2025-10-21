@@ -58,14 +58,13 @@ def recalculer_nombreObs_par_correlation(df_input,df_corr,col_valeur,cle_sujet,w
 
     return df_sujet_predit
 
-def calculer_seuil(df_input,df_sujet_predit,cle_sujet,col_valeur,seuil_observation=1,n_sigma=2,cle_geo='codeMaille10Km',cle_ID='speciesKey'):
+def calculer_seuil(df_input,df_sujet_predit,cle_sujet,col_valeur,n_sigma=2,cle_geo='codeMaille10Km',cle_ID='speciesKey'):
     colonne_resultat = f"{col_valeur}_predit"
     if n_sigma==0:
         seuil_prediction=0
     else:
-        df_global_avec_presence = df_input[(df_input[cle_ID]==cle_sujet)&(df_input['nombreObs']>=seuil_observation)]
+        df_global_avec_presence = df_input[(df_input[cle_ID]==cle_sujet)]
         liste_mailles_avec_sujet = df_global_avec_presence[cle_geo].unique()
-
 
         df_predit_avec_presence=df_sujet_predit[(df_sujet_predit[cle_geo].isin(liste_mailles_avec_sujet))]
 
