@@ -1,0 +1,12 @@
+numpy
+pandas
+matplotlib
+scipy
+scikit-learn
+geopandas
+shapely
+pyproj
+contextily
+folium
+ipython
+PyQt5
