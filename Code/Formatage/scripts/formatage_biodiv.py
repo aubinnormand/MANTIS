@@ -1,0 +1,162 @@
+# biodiv_utils.py
+
+import pandas as pd
+import os, csv
+from pathlib import Path
+import numpy as np
+import importlib
+
+import formatage_biodiv_config
+importlib.reload(formatage_biodiv_config)
+from formatage_biodiv_config import colonnes_import, col_map
+
+# -----------------------------
+# Fonction utilitaire pour afficher la réduction
+# -----------------------------
+def _log_reduction(df_before, df_after, step_name):
+    """Affiche la perte de données entre deux étapes."""
+    n_before = len(df_before)
+    n_after = len(df_after)
+    removed = n_before - n_after
+    pct = 0 if n_before == 0 else round((removed / n_before) * 100, 2)
+    print(f"   🔧 {step_name:<30} -{removed} lignes ({pct}%)")
+
+# -----------------------------
+# Détecteur de séparateur
+# -----------------------------
+def detect_sep(path_fichier, seps=[",",";","\t","|"," "], nrows=5):
+    best_sep = None
+    best_cols = 0
+    for sep in seps:
+        try:
+            df = pd.read_csv(path_fichier, sep=sep, nrows=nrows, engine="python")
+            if len(df.columns) > best_cols:
+                best_cols = len(df.columns)
+                best_sep = sep
+        except:
+            continue
+    if best_sep is None:
+        raise ValueError("Impossible de déterminer un séparateur correct")
+    print(f"✅ Séparateur choisi : '{best_sep}' avec {best_cols} colonnes")
+    return best_sep
+
+# -----------------------------
+# Nettoyage des données
+# -----------------------------
+def clean_biodiv_data(df, cle_ID, annee_min=1):
+    df = df.copy()
+    print(f"🧾 Colonnes présentes : {list(df.columns)}")
+
+    # ---------------- Dates ----------------
+    before = df.copy()
+    df['eventDate'] = pd.to_datetime(df.get('eventDate', pd.NaT), errors='coerce', utc=True)
+    df['year'] = pd.to_numeric(df['year'].fillna(df['eventDate'].dt.year), errors='coerce')
+    df['month'] = pd.to_numeric(df['month'].fillna(df['eventDate'].dt.month), errors='coerce')
+    df = df.dropna(subset=['year', 'month']).reset_index(drop=True)
+    df['year'] = df['year'].astype(int)
+    df['month'] = df['month'].astype(int)
+    _log_reduction(before, df, "Dates (année + mois valides)")
+
+    # ---------------- Coordonnées ----------------
+    before = df.copy()
+    df['lon'] = pd.to_numeric(df.get('lon', np.nan), errors='coerce')
+    df['lat'] = pd.to_numeric(df.get('lat', np.nan), errors='coerce')
+    df = df.dropna(subset=['lon', 'lat']).reset_index(drop=True)
+    _log_reduction(before, df, "Coordonnées valides")
+
+    # ---------------- Occurrence PRESENT ----------------
+    before = df.copy()
+    df = df[df['occurrenceStatus'] == 'PRESENT'].reset_index(drop=True)
+    _log_reduction(before, df, "occurrenceStatus=PRESENT")
+
+    # ---------------- Filtrer années min ----------------
+    if annee_min is not None:
+        before = df.copy()
+        df = df[df['year'] >= annee_min].reset_index(drop=True)
+        _log_reduction(before, df, f"Année >= {annee_min}")
+
+    # ---------------- Filtrer taxonRank = SPECIES ----------------
+    before = df.copy()
+    df = df[df['taxonRank'].str.upper().isin(['SPECIES', 'VARIETY'])].reset_index(drop=True)
+    _log_reduction(before, df, "taxonRank=SPECIES|VARIETY")
+
+    # ---------------- ID espèces ----------------
+    df[cle_ID] = df[cle_ID].astype(int)
+    df[cle_ID] = df[cle_ID].astype(str).str.strip()
+
+    # ---------------- Individual count ----------------
+    df['nombreObs'] = pd.to_numeric(df['nombreObs'], errors='coerce').fillna(1)
+
+    # ---------------- Supprimer colonnes inutiles ----------------
+    for col in ['eventDate', 'occurrenceStatus', 'taxonRank']:
+        if col in df.columns:
+            df = df.drop(columns=col)
+
+    return df
+
+# -----------------------------
+# Harmonisation colonnes source → standard
+# -----------------------------
+def harmonize_columns(df, source):
+    mapping = col_map.get(source)
+    if mapping:
+        df = df.rename(columns=mapping)
+    return df
+
+# -----------------------------
+# Lecture par chunks
+# -----------------------------
+def read_biodiv_chunks(path_fichier, source, cle_ID, annee_min=1, chunksize=10_000_000):
+    colonnes_a_importer = colonnes_import.get(source)
+    if colonnes_a_importer is None:
+        raise ValueError(f"Source {source} non reconnue dans colonnes_import")
+
+    sep = detect_sep(path_fichier)
+    df_final = pd.DataFrame()
+    chunk_number = 0
+
+    for df_chunk in pd.read_csv(
+        path_fichier,
+        sep=sep,
+        usecols=lambda c: c in colonnes_a_importer,
+        chunksize=chunksize,
+        on_bad_lines='skip',
+        quoting=csv.QUOTE_NONE
+    ):
+        chunk_number += 1
+        print(f"\n--- Traitement chunk {chunk_number} ---")
+        df_chunk = harmonize_columns(df_chunk, source)
+        df_clean = clean_biodiv_data(df_chunk, cle_ID=cle_ID, annee_min=annee_min)
+        df_final = pd.concat([df_final, df_clean], ignore_index=True)
+        print(f"✅ Chunk {chunk_number} traité. Total lignes cumulées : {len(df_final)}")
+
+    print(f"\n🎉 Lecture complète terminée : {len(df_final)} lignes")
+    return df_final
+
+# -----------------------------
+# Sauvegarde
+# -----------------------------
+def save_clean_biodiv(df_biodiv_clean, source, zone, path_data):
+    output_path = Path(path_data) / source / 'clean' / f"{source}_{zone}.csv"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    df_biodiv_clean.to_csv(output_path, index=False)
+    print(f"🎉 Données nettoyées sauvegardées dans : {output_path}")
+    return output_path
+
+    import pandas as pd
+
+def inspect_columns_with_examples(path_fichier):
+    """Affiche les colonnes et un exemple de valeur pour chacune."""
+    
+    sep = detect_sep(path_fichier)  # utilise ton détecteur existant
+    df_tmp = pd.read_csv(path_fichier, sep=sep, nrows=200, on_bad_lines="skip")  # petite lecture
+    
+    print(f"\n🔎 Aperçu du fichier : {path_fichier.name}")
+    print(f"📦 Colonnes détectées : {len(df_tmp.columns)}\n")
+    
+    for col in df_tmp.columns:
+        example = df_tmp[col].dropna().iloc[0] if df_tmp[col].dropna().size > 0 else "❌ NA uniquement"
+        print(f"   • {col:<25} → Exemple : {example}")
+    
+    return df_tmp
+
