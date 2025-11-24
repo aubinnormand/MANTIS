@@ -82,12 +82,20 @@ def clean_biodiv_data(df, cle_ID, annee_min=1):
 
     # ---------------- ID espèces ----------------
     before = df.copy()
-    df[cle_ID] = pd.to_numeric(df[cle_ID], errors="coerce")  # ➤ convertit en float + met NaN si non numérique
+
+    ## Nettoyage des espaces
+    df[cle_ID] = df[cle_ID].astype(str).str.strip()
+    
+    # Vérifier si toute la colonne est numérique
+    if df[cle_ID].str.isdigit().all():
+        # Conversion en int puis en str (optionnel)
+        df[cle_ID] = df[cle_ID].astype(int).astype(str)
+    else:
+        # On garde la colonne telle quelle en string
+        df[cle_ID] = df[cle_ID].astype(str)
 
     df = df.dropna(subset=[cle_ID])  # ➤ supprime les lignes sans ID valide
     
-    df[cle_ID] = df[cle_ID].astype(int)  # ➤ conversion maintenant possible
-    df[cle_ID] = df[cle_ID].astype(str).str.strip()  # ➤ pour être sûr que ce soit propre
     _log_reduction(before, df, "species ID valides")
 
     # ---------------- Individual count ----------------
@@ -113,7 +121,7 @@ def harmonize_columns(df, source):
 # -----------------------------
 # Lecture par chunks
 # -----------------------------
-def read_biodiv_chunks(path_fichier, source, cle_ID, annee_min=1, chunksize=10_000_000):
+def read_biodiv_chunks(path_fichier, source, cle_ID, annee_min=1950, chunksize=10_000_000):
     colonnes_a_importer = colonnes_import.get(source)
     if colonnes_a_importer is None:
         raise ValueError(f"Source {source} non reconnue dans colonnes_import")
@@ -128,12 +136,13 @@ def read_biodiv_chunks(path_fichier, source, cle_ID, annee_min=1, chunksize=10_0
         usecols=lambda c: c in colonnes_a_importer,
         chunksize=chunksize,
         on_bad_lines='skip',
-        quoting=csv.QUOTE_NONE
+        #quoting=csv.QUOTE_NONE
     ):
         chunk_number += 1
         print(f"\n--- Traitement chunk {chunk_number} ---")
         df_chunk = harmonize_columns(df_chunk, source)
-        df_clean = clean_biodiv_data(df_chunk, cle_ID=cle_ID, annee_min=annee_min)
+        #df_clean = clean_biodiv_data(df_chunk, cle_ID=cle_ID, annee_min=annee_min)
+        df_clean = clean_biodiv_data_source(df_chunk, source=source,annee_min=annee_min)
         df_final = pd.concat([df_final, df_clean], ignore_index=True)
         print(f"✅ Chunk {chunk_number} traité. Total lignes cumulées : {len(df_final)}")
 
@@ -166,4 +175,112 @@ def inspect_columns_with_examples(path_fichier):
         print(f"   • {col:<25} → Exemple : {example}")
     
     return df_tmp
+
+def _clean_dates(df, date_col='eventDate', year_col='year', month_col='month'):
+    before = df.copy()
+    df[date_col] = pd.to_datetime(df.get(date_col, pd.NaT), errors='coerce', utc=True)
+    df[year_col] = pd.to_numeric(df.get(year_col, df[date_col].dt.year), errors='coerce')
+    df[month_col] = pd.to_numeric(df.get(month_col, df[date_col].dt.month), errors='coerce')
+    df = df.dropna(subset=[year_col, month_col]).reset_index(drop=True)
+    df[year_col] = df[year_col].astype(int)
+    df[month_col] = df[month_col].astype(int)
+    _log_reduction(before, df, "Dates (année + mois valides)")
+    return df
+
+def _clean_coords(df, lon='lon', lat='lat'):
+    before = df.copy()
+    df[lon] = pd.to_numeric(df.get(lon, np.nan), errors='coerce')
+    df[lat] = pd.to_numeric(df.get(lat, np.nan), errors='coerce')
+    df=df.dropna(subset=[lon, lat]).reset_index(drop=True)
+    _log_reduction(before, df, "clean coords")
+    return df
+
+def _clean_occurrence(df):
+    before = df.copy()
+    df=df[df['occurrenceStatus'] == 'PRESENT'].reset_index(drop=True)
+    _log_reduction(before, df, "Occurencestatuts")
+    return df
+
+def _clean_ID(df, cle_ID):
+    before = df.copy()
+    df[cle_ID] = df[cle_ID].astype(str).str.strip()
+    if df[cle_ID].str.isdigit().all():
+        df[cle_ID] = df[cle_ID].astype(int).astype(str)
+    df = df.dropna(subset=[cle_ID])
+    _log_reduction(before, df, "clean ID")
+    return df
+
+def _clean_nombreObs(df):
+    before = df.copy()
+    #df['nombreObs'] = pd.to_numeric(df.get('nombreObs', 1), errors='coerce').fillna(1)
+    df['nombreObs'] = 1
+    _log_reduction(before, df, "clean nombreObs")
+    return df
+    
+def _clean_anneemin(df,annee_min=1950):
+        before = df.copy()
+        df = df[df['year'] >= annee_min].reset_index(drop=True)
+        _log_reduction(before, df, f"Année >= {annee_min}")
+
+def clean_gbif(df,annee_min=1950):
+    df = df.copy()
+    df = _clean_dates(df, 'eventDate')
+    df = _clean_anneemin(df,annee_min)
+    df = _clean_coords(df)
+    df = _clean_occurrence(df)
+    df = df[df['taxonRank'].str.upper().isin(['SPECIES', 'VARIETY'])].reset_index(drop=True)
+    df = _clean_ID(df, 'speciesID')
+    df = _clean_nombreObs(df)
+    # supprimer colonnes inutiles
+    for col in ['eventDate','occurrenceStatus','taxonRank']:
+        if col in df.columns: df = df.drop(columns=col)
+    return df
+    
+
+        
+def clean_inpn(df,annee_min=1950):
+    df = df.copy()
+    df = _clean_dates(df, 'eventDate')
+    df = _clean_anneemin(df,annee_min)
+    df = _clean_coords(df, lon='lon', lat='lat')
+    df = _clean_occurrence(df)
+    df = df[df['taxonRank'].str.upper().isin(['SPECIES', 'VARIETY'])].reset_index(drop=True)
+    df = _clean_ID(df, 'cdRef')
+    df = _clean_nombreObs(df)
+    for col in ['dateObs','occurrenceStatus','taxonRank']:
+        if col in df.columns: df = df.drop(columns=col)
+    return df
+
+def clean_silene(df,annee_min=1950):
+    df = df.copy()
+    df = _clean_dates(df, 'eventDate')
+    df = _clean_anneemin(df,annee_min)
+    df = _clean_coords(df, lon='lon', lat='lat')
+    # species = deux premiers mots
+    if 'nom_valide' in df.columns:
+        df['species'] = df['nom_valide'].astype(str).str.split().str[:2].str.join(' ')
+        df['genus'] = df['nom_valide'].astype(str).str.split().str[0]
+    df = _clean_ID(df, 'speciesID')
+    df = _clean_nombreObs(df)
+    
+    required_cols = ['speciesID','nombreObs','species','genus','family','order','class','kingdom','month','year','lon','lat']
+    missing = [c for c in required_cols if c not in df.columns]
+    
+    if missing:
+        raise KeyError(f"❌ Colonnes manquantes dans SILENE : {missing}\n💡 Colonnes présentes : {list(df.columns)}")
+    
+    df = df[required_cols]
+
+    return df
+
+def clean_biodiv_data_source(df, source,annee_min=1950):
+    if source == 'GBIF':
+        return clean_gbif(df,annee_min)
+    elif source == 'INPN':
+        return clean_inpn(df,annee_min)
+    elif source == 'SILENE':
+        return clean_silene(df,annee_min)
+    else:
+        raise ValueError(f"Source inconnue : {source}")
+
 

@@ -1,22 +1,28 @@
 # formatage_biodiv_config.py
 
-# Colonnes à importer selon la source
 colonnes_import = {
     "GBIF": [
         "speciesKey", "species", "occurrenceStatus",
         "decimalLongitude", "decimalLatitude",
         "eventDate", "year", "month", "individualCount",
         "gridId", "grid_name", "taxonRank",
-        "kingdom", "phylum", "order", "family", "genus"
+        "kingdom", "phylum", "class","order", "family", "genus"
     ],
     "INPN": [
         "cdRef", "nomScientifique", "occurrenceStatus",
-        "longitude", "latitude",
+        "x_centroid_4326", "y_centroid_4326",
         "dateObs", "year", "month", "nombreIndividus",
         "codeMaille10Km", "taxonRank",
-        "kingdom", "phylum", "ordre", "famille", "genre"
+        "kingdom", "phylum", "classe","ordre", "famille", "genre"
+    ],
+    "SILENE": [
+        "cd_ref", "nom_valide","nom_vernaculaire",
+        "x_centroid_4326", "y_centroid_4326",
+        "date_debut", "nombre_min",
+        "classe", "ordre", "famille","regne"
     ]
 }
+
 
 # Correspondance colonnes source → standard
 col_map = {
@@ -57,5 +63,17 @@ col_map = {
         "ordre": "order",
         "famille": "family",
         "genre": "genus"
+    },
+    "SILENE": {
+        "cd_ref": "speciesID",
+        "nom_valide": "nom_valide",
+        "x_centroid_4326": "lon",
+        "y_centroid_4326": "lat",
+        "date_debut": "eventDate",
+        "nombre_min": "nombreObs",
+        "regne":"kingdom",
+        "classe":"class",
+        "ordre": "order",
+        "famille": "family"
     }
 }
