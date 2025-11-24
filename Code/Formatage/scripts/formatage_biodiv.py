@@ -81,11 +81,18 @@ def clean_biodiv_data(df, cle_ID, annee_min=1):
     _log_reduction(before, df, "taxonRank=SPECIES|VARIETY")
 
     # ---------------- ID espèces ----------------
-    df[cle_ID] = df[cle_ID].astype(int)
-    df[cle_ID] = df[cle_ID].astype(str).str.strip()
+    before = df.copy()
+    df[cle_ID] = pd.to_numeric(df[cle_ID], errors="coerce")  # ➤ convertit en float + met NaN si non numérique
+
+    df = df.dropna(subset=[cle_ID])  # ➤ supprime les lignes sans ID valide
+    
+    df[cle_ID] = df[cle_ID].astype(int)  # ➤ conversion maintenant possible
+    df[cle_ID] = df[cle_ID].astype(str).str.strip()  # ➤ pour être sûr que ce soit propre
+    _log_reduction(before, df, "species ID valides")
 
     # ---------------- Individual count ----------------
     df['nombreObs'] = pd.to_numeric(df['nombreObs'], errors='coerce').fillna(1)
+    #df['nombreObs'] = 1 #Pour ne pas prendre en compte individualCounts
 
     # ---------------- Supprimer colonnes inutiles ----------------
     for col in ['eventDate', 'occurrenceStatus', 'taxonRank']:

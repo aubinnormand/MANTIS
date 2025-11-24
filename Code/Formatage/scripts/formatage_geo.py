@@ -4,10 +4,18 @@ import numpy as np
 import geopandas as gpd
 from shapely.geometry import box
 import matplotlib.pyplot as plt
+from pyproj import Geod
 
 # ------------------------- #
 #         UTILITAIRES       #
 # ------------------------- #
+# initialiser l'ellipsoïde WGS84
+geod = Geod(ellps="WGS84")
+def geod_area(poly):
+    # calcule l'aire en m² (la fonction renvoie aussi un périmètre, que l'on ignore)
+    area, _ = geod.geometry_area_perimeter(poly)
+    return abs(area)  # aire positive
+        
 def simplify_world_geometry(world_gdf, tolerance=0.1):
     """
     Simplifie la géométrie du GeoDataFrame mondial pour accélérer les calculs et l'affichage.
@@ -157,6 +165,9 @@ def generate_country_grid(
     
      # 4) Préfixer la clé par le code de zone 
     grid[cle_geo] = zone_code + "_" + grid[cle_geo].astype(str)
+    
+    # 5) Calculer l'aire des cellules
+    grid=compute_area_grid(grid)
 
     # 5) Correction clés pour doublons éventuels
     #ensure_unique_spatial_keys(grid, cle_geo)
@@ -165,7 +176,7 @@ def generate_country_grid(
     report_duplicate_keys(grid, cle_geo)
 
     # 7) Conserver seulement cle_geo et geometry
-    grid = grid[[cle_geo, 'geometry','rank_x','rank_y']]
+    grid = grid[[cle_geo, 'geometry','area_km2','rank_x','rank_y']]
 
     return grid
 
@@ -202,3 +213,11 @@ def plot_country_grid(world_gdf, grid_gdf, name_attribute, country_name):
     plt.show() 
 
 
+def compute_area_grid(grid):
+                         # initialiser l'ellipsoïde WGS84 (le même qu’EPSG:4326)
+    geod = Geod(ellps="WGS84")
+    grid = grid.to_crs(epsg=4326)
+    
+    # appliquer directement sur ton dataframe "carte_maille"
+    grid["area_km2"] = grid.geometry.apply(geod_area)/ 1e6
+    return grid

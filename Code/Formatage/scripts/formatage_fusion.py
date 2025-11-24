@@ -98,6 +98,29 @@ def fusion_cells_by_obs(df_final, grid, cle_geo, var_obs, seuil=1000, methode="b
 
     return gdf.reset_index(drop=True)
 
+def save_merged_grid(merged_fusion, path_data, zone, cle_geo, source, seuil_fusion):
+    
+    # Colonnes à garder
+    colonnes_a_garder = [cle_geo, "geometry",'area_km2']
+    
+    grid_fusion = merged_fusion[colonnes_a_garder].copy()
+
+    # Génération du chemin du fichier
+    filename = f"{zone}_{cle_geo}_fused_{source}_{seuil_fusion}.geojson"
+    path_output = path_data / "SIG_zone" / zone /filename
+
+    # Sauvegarde de la grille fusionnée
+    """Crée un dossier si nécessaire et exporte la grille en GeoJSON."""
+    path_output.parent.mkdir(parents=True, exist_ok=True)
+    
+    grid_fusion.to_file(path_output, driver="GeoJSON")
+
+    print(f"📍 Grille enregistrée : {path_output}")
+    
+    return path_output
+
+
+
 def apply_fusion_to_biodiv(df_biodiv, merged_fusion, cle_geo='codeMaille10Km', cle_ID='speciesKey', var_obs='nombreObs'):
     """
     Applique les fusions à df_biodiv et sauvegarde le résultat si path_save est fourni.
@@ -157,10 +180,8 @@ def plot_fusionned_grid(gdf, var_obs='nombreObs', title=None, cmap='viridis', fi
 
 
 def save_fusionned_biodiv(df_final, source, zone, cle_geo,path_data,seuil):
-    output_path = path_data / source / 'processed' / f"{source}_{zone}_{cle_geo}_fusionned{str(seuil)}.csv"
+    output_path = path_data / source / 'processed' / zone/f"{source}_{zone}_{cle_geo}_fused{str(seuil)}.csv"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df_final.to_csv(output_path, index=False)
     print(f"🎉 Données nettoyées sauvegardées dans : {output_path}")
     return output_path
-
-    import pandas as pd

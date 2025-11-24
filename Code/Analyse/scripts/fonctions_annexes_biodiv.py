@@ -27,7 +27,7 @@ def round_to_sig(num, sig=3, direction='nevarest'):
 
 def generer_dictionnaire_taxonomie(df,cle_ID='cdRef'):
     # Définir les colonnes attendues
-    colonnes_attendues = ['speciesKey','cdRef','cdNom','taxonID',
+    colonnes_attendues = ['speciesKey','cdRef','cdNom','taxonID','speciesID',
                           'species','vernacularName_fr','vernacularName_en','genus','family','order','class','phylum','kingdom', 
                           'nomScientifique','nomVernaculaire','genre', 'famille', 'ordre', 'classe', 'regne',
                       'especeProtegee','statutBiogeoEspeceTaxref', 'habitatEspeceTaxref','occurrenceID']

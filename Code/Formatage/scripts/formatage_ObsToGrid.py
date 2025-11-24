@@ -82,7 +82,7 @@ def aggregate_by_grid_species(df_country, cle_geo, dico_taxo, cle_ID='speciesID'
 # Sauvegarde
 # -----------------------------
 def save_processed_biodiv(df_final, source, zone, cle_geo,path_data):
-    output_path = path_data / source / 'processed' / f"{source}_{zone}_{cle_geo}.csv"
+    output_path = path_data / source / 'processed' / zone/f"{source}_{zone}_{cle_geo}.csv"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df_final.to_csv(output_path, index=False)
     print(f"🎉 Données nettoyées sauvegardées dans : {output_path}")

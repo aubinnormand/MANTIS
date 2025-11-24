@@ -17,37 +17,43 @@ def normaliser_par_maille(df, cle_geo='codeMaille10Km', observation_col='nombreO
 
     return df
 
-def normaliser_par_aire(df, carte_maille, cle_geo='codeMaille10Km',size_grid=None, observation_col='nombreObs'):
-    # Calcul de l'aire des mailles
-    carte_maille = carte_maille.to_crs(epsg=4326)
-    carte_maille['aire'] = carte_maille.geometry.area
-    
-    # Si size_grid est défini, normaliser l'aire pour qu'elle soit à la taille de la grille
-    if size_grid is not None:
-        max_aire = carte_maille['aire'].max()  # Trouver la valeur maximale de l'aire
-        carte_maille['aire'] = (carte_maille['aire'] / max_aire) * (size_grid ** 2)
-        print(f"Les aires sont normalisées à {size_grid} km2.")
-        
+def normaliser_par_aire(df, carte_maille, cle_geo='codeMaille10Km',
+                        observation_col='nombreObs'):
+    """
+    Normalise les observations par aire (en km²) en utilisant directement 
+    la colonne 'area_km2' de carte_maille.
+
+    df : dataframe avec au moins [cle_geo, observation_col]
+    carte_maille : GeoDataFrame avec [cle_geo, 'area_km2']
+    observation_col : nom de la colonne contenant les observations
+    """
+
+    # Vérifier que l'aire est bien présente
+    if 'area_km2' not in carte_maille.columns:
+        raise ValueError("La colonne 'area_km2' doit être présente dans carte_maille.")
+
     # Fusion des données pour associer les aires aux observations
-    df = df.merge(carte_maille[[cle_geo, 'aire']], on=cle_geo, how='left')
-    
-    # Calcul de la somme des observations pondérée par l'aire
-    col_norm = observation_col + '_norm_par_maille'
-    target_mean = (df.groupby([cle_geo])[observation_col].sum() / df.groupby([cle_geo])['aire'].first()).mean()
-    
-    somme_obs = df.groupby([cle_geo])[observation_col].transform('sum')
-    somme_aire = df.groupby([cle_geo])['aire'].transform('first')  # Même aire pour toutes les lignes d'une maille
-    
-    if size_grid is not None:
-        df[col_norm] = (df[observation_col] / somme_obs) * target_mean * somme_aire / (size_grid ** 2)
-        df = df.drop(columns=['aire'])
-        print(f"Il y a en moyenne {target_mean.round(1)} observations par km2.")
-    else:
-        df[col_norm] = (df[observation_col] / somme_obs) * target_mean * somme_aire
-        df = df.drop(columns=['aire'])
-        print(f"Il y a en moyenne {target_mean.round(1)} observations par unité d'aire.")
-    
+    df = df.merge(carte_maille[[cle_geo, 'area_km2']], on=cle_geo, how='left')
+
+    # Calcul de la densité moyenne d’observations (nb obs / km²)
+    densite_moyenne = (
+        df.groupby(cle_geo)[observation_col].sum()
+        /
+        df.groupby(cle_geo)['area_km2'].first()
+    ).mean()
+
+    # Données par maille
+    somme_obs = df.groupby(cle_geo)[observation_col].transform('sum')
+    aire = df.groupby(cle_geo)['area_km2'].transform('first')
+
+    # Colonne normalisée
+    col_norm = observation_col + '_norm_par_aire'
+    df[col_norm] = (df[observation_col] / somme_obs) * densite_moyenne * aire
+
+    print(f"Il y a en moyenne {densite_moyenne.round(1)} observations par km².")
+
     return df
+
 
 
 def normaliser_par_espece(df, code_col='cdRef', observation_col='nombreObs'):
@@ -90,40 +96,48 @@ def normaliser_par_maille_et_clade(df, cle_geo='codeMaille10Km', clade_col='regn
 
     return df
 
-def normaliser_par_aire_et_clade(df, carte_maille, cle_geo='codeMaille10Km', size_grid=None,clade_col='regne', observation_col='nombreObs'):
-    col_norm = f"{observation_col}_norm_par_maille_et_{clade_col}"
-    
-    # Calcul de l'aire des mailles
-    carte_maille = carte_maille.to_crs(epsg=4326)
-    carte_maille['aire'] = carte_maille.geometry.area
+def normaliser_par_aire_et_clade(df, carte_maille, cle_geo='codeMaille10Km',
+                                 clade_col='regne', observation_col='nombreObs'):
+    """
+    Normalise les observations par maille et par clade en utilisant directement 
+    la colonne 'area_km2' de carte_maille.
 
-    # Si size_grid est défini, normaliser l'aire pour qu'elle soit à la taille de la grille
-    if size_grid is not None:
-        max_aire = carte_maille['aire'].max()  # Trouver la valeur maximale de l'aire
-        carte_maille['aire'] = (carte_maille['aire'] / max_aire) * (size_grid ** 2)
-        print(f"Les aires sont normalisées à {size_grid} km2.")
-        
+    df : dataframe avec au moins [cle_geo, clade_col, observation_col]
+    carte_maille : GeoDataFrame avec [cle_geo, 'area_km2']
+    clade_col : colonne représentant le clade (ex: regne, classe)
+    observation_col : colonne contenant le nombre d'observations
+    """
+
+    # Vérifier que l'aire est bien présente
+    if 'area_km2' not in carte_maille.columns:
+        raise ValueError("La colonne 'area_km2' doit être présente dans carte_maille.")
+
+    col_norm = f"{observation_col}_norm_par_aire_et_{clade_col}"
+
     # Fusion des données pour associer les aires aux observations
-    df = df.merge(carte_maille[[cle_geo, 'aire']], on=cle_geo, how='left')
-    
-    # Calcul du nombre d'observations normalisé par maille et clade
+    df = df.merge(carte_maille[[cle_geo, 'area_km2']], on=cle_geo, how='left')
+
+    # Somme des observations par maille et clade
     somme_obs_par_maille_clade = df.groupby([cle_geo, clade_col])[observation_col].transform('sum')
-    somme_aire_par_maille = df.groupby([cle_geo])['aire'].transform('first')  # Même aire pour une maille donnée
-    
+    somme_aire_par_maille = df.groupby([cle_geo])['area_km2'].transform('first')  # Même aire pour toutes les lignes d'une maille
+
     # Moyenne cible pondérée par l'aire
-    target_mean = (df.groupby([cle_geo, clade_col])[observation_col].sum() / df.groupby([cle_geo])['aire'].first()).mean()
-    
-    # Normalisation en tenant compte de l'aire
-    if size_grid is not None:
-        df[col_norm] = (df[observation_col] / somme_obs_par_maille_clade) * target_mean * somme_aire_par_maille / (size_grid ** 2)
-        df = df.drop(columns=['aire'])
-        print(f"Il y a en moyenne {target_mean.round(1)} observations par {clade_col} et par km2.")
-    else:
-        df[col_norm] = (df[observation_col] / somme_obs_par_maille_clade) * target_mean * somme_aire_par_maille
-        df = df.drop(columns=['aire'])
-        print(f"Il y a en moyenne {target_mean.round(1)} observations par {clade_col} et par unité d'aire.")
+    target_mean = (
+        df.groupby([cle_geo, clade_col])[observation_col].sum()
+        /
+        df.groupby([cle_geo])['area_km2'].first()
+    ).mean()
+
+    # Normalisation
+    df[col_norm] = (df[observation_col] / somme_obs_par_maille_clade) * target_mean * somme_aire_par_maille
+
+    # Nettoyage
+    df = df.drop(columns=['area_km2'], errors='ignore')
+
+    print(f"Il y a en moyenne {target_mean.round(1)} observations par {clade_col} et par km².")
 
     return df
+
 
     
 def normaliser_unique(df,observation_col='nombreObs'):

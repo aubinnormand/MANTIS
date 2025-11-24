@@ -34,6 +34,7 @@ col_map = {
         "taxonRank": "taxonRank",
         "kingdom": "kingdom",
         "phylum": "phylum",
+        "class":"class",
         "order": "order",
         "family": "family",
         "genus": "genus",
@@ -52,6 +53,7 @@ col_map = {
         "taxonRank": "taxonRank",
         "kingdom": "kingdom",
         "phylum": "phylum",
+        "class":"class",
         "ordre": "order",
         "famille": "family",
         "genre": "genus"

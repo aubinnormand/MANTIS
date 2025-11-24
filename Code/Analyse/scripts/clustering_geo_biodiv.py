@@ -121,6 +121,47 @@ def former_cluster_biogeo(df_pca,cle_geo,method='kmeans',k_cluster=5,n_init=10,d
     # Afficher le DataFrame avec les clusters
     return df_cluster[[cle_geo, 'Cluster']]
 
+def reorganiser_clusters_par_aire(df_cluster, carte_maille, cle_geo='code', cluster_col='Cluster', display=False):
+    """
+    Réorganise les clusters d'un DataFrame en fonction de l'aire totale des cellules dans chaque cluster.
+    
+    Parameters
+    ----------
+    df_cluster : pd.DataFrame
+        DataFrame contenant au moins les colonnes [cle_geo, cluster_col].
+    carte_maille : pd.DataFrame
+        DataFrame contenant au moins les colonnes [cle_geo, 'area_km2'].
+    cle_geo : str
+        Nom de la colonne d'identifiant spatial.
+    cluster_col : str
+        Nom de la colonne contenant les clusters.
+    display : bool
+        Affiche le résumé des aires par cluster si True.
+    
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame avec la colonne cluster_col réorganisée par aire totale décroissante.
+    """
+    # Fusionner les données pour récupérer l'aire
+    df_merge = pd.merge(df_cluster, carte_maille[[cle_geo, 'area_km2']], on=cle_geo, how='left')
+    
+    # Calculer l'aire totale par cluster et trier
+    aire_par_cluster = df_merge.groupby(cluster_col)['area_km2'].sum().sort_values(ascending=False)
+    
+    # Créer un mapping pour réorganiser les clusters
+    cluster_mapping = {old_cluster: new_cluster for new_cluster, old_cluster in enumerate(aire_par_cluster.index, start=1)}
+    
+    # Appliquer le mapping
+    df_cluster[cluster_col] = df_cluster[cluster_col].map(cluster_mapping)
+    
+    if display:
+        print("Aire totale par cluster après réorganisation :")
+        print(aire_par_cluster)
+    
+    return df_cluster
+
+
 def former_cluster_biogeo_avec_critere_spatial(df_pca, carte_maille, cle_geo, n_components, k, choix_methode, lambda_penalty,n_init=1,parameter=50,display=True):
     """Exécute l'ensemble du pipeline de clustering avec contrainte spatiale."""
     
@@ -144,6 +185,33 @@ def former_cluster_biogeo_avec_critere_spatial(df_pca, carte_maille, cle_geo, n_
     # Calculer les centroïdes
     centroids_new = compute_spatial_centroids(df_cluster, cluster_col='Cluster', geometry_col='geometry')
     centroids_cluster_array = np.array([(point.x, point.y) for point in centroids_new])
+    
+    return df_cluster[[cle_geo, 'Cluster']]
+    """Exécute le clustering avec contrainte spatiale et réorganise les clusters selon l'aire totale."""
+    
+    # Fusionner les données PCA avec les coordonnées spatiales
+    df_pca_geo = pd.merge(df_pca.reset_index(), carte_maille[[cle_geo, 'geometry', 'area_km2']], on=cle_geo)
+    df_cluster = df_pca_geo.copy()
+    
+    # Extraire les features et coordonnées spatiales
+    features = df_pca_geo[[f"PC{i}" for i in range(1, n_components + 1)]].values
+    spatial_coords = np.array([geom.centroid.coords[0] for geom in df_pca_geo.geometry])
+    
+    # Appliquer le clustering
+    df_cluster['Cluster'] = kmeans_with_spatial_constraint(features, spatial_coords, k, choix_methode, lambda_penalty, n_init, parameter)
+    
+    # Réorganiser les clusters selon l'aire totale de chaque cluster
+    aire_par_cluster = df_cluster.groupby('Cluster')['area_km2'].sum().sort_values(ascending=False)
+    cluster_mapping = {old_cluster: new_cluster for new_cluster, old_cluster in enumerate(aire_par_cluster.index, start=1)}
+    df_cluster['Cluster'] = df_cluster['Cluster'].map(cluster_mapping)
+    
+    # Calculer les centroïdes spatiaux
+    centroids_new = compute_spatial_centroids(df_cluster, cluster_col='Cluster', geometry_col='geometry')
+    centroids_cluster_array = np.array([(point.x, point.y) for point in centroids_new])
+    
+    if display:
+        print("Clusters réorganisés par aire totale :")
+        print(aire_par_cluster)
     
     return df_cluster[[cle_geo, 'Cluster']]
 

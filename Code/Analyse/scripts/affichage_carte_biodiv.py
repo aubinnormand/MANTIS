@@ -34,6 +34,79 @@ def afficher_fond_carte(nom, dictionnaire_cartes, source_fond='OpenStreetMap', z
     
     return fig, ax1
 
+def afficher_fond_carte_gdf(gdf, source_fond='OpenStreetMap', zoom_manuel=None, fig_size=None, marge=0.05, max_fig_size=(15, 15)):
+    """
+    Affiche un fond de carte centré sur la zone d'un GeoDataFrame.
+    
+    Parameters:
+    - gdf: GeoDataFrame contenant la géométrie de la zone à afficher
+    - source_fond: nom de la source du fond de carte (ex: 'OpenStreetMap')
+    - zoom_manuel: zoom optionnel, sinon calculé automatiquement
+    - fig_size: taille de la figure (largeur, hauteur) ou None pour calcul automatique
+    - marge: fraction de l'étendue totale à ajouter autour de la zone (ex: 0.05 = 5%)
+    - max_fig_size: taille max de la figure si fig_size automatique
+    
+    Returns:
+    - fig, ax : figure et axes matplotlib
+    """
+    if gdf.empty:
+        print("Erreur : le GeoDataFrame est vide.")
+        return
+
+    # Projet en Web Mercator
+    gdf = gdf.to_crs(epsg=3857)
+    minx, miny, maxx, maxy = gdf.total_bounds
+
+    # Ajouter marge
+    dx = (maxx - minx) * marge
+    dy = (maxy - miny) * marge
+    minx, maxx = minx - dx, maxx + dx
+    miny, maxy = miny - dy, maxy + dy
+
+    # Centrer la carte
+    center_x = (minx + maxx) / 2
+    center_y = (miny + maxy) / 2
+
+    # Largeur et hauteur de la zone
+    largeur = maxx - minx
+    hauteur = maxy - miny
+
+    # Calcul automatique du zoom si nécessaire
+    if zoom_manuel is not None:
+        zoom = zoom_manuel
+    else:
+        # Zoom basé sur la largeur de la zone (EPSG:3857)
+        zoom = max(0, int(18 - (largeur / 10000)))
+
+    # Calcul automatique de la taille de la figure si fig_size est None
+    if fig_size is None:
+        ratio = largeur / hauteur
+        if ratio >= 1:
+            width = min(max_fig_size[0], 10 * ratio)
+            height = min(max_fig_size[1], 10)
+        else:
+            width = min(max_fig_size[0], 10)
+            height = min(max_fig_size[1], 10 / ratio)
+        fig_size = (width, height)
+
+    # --- PRINT debug ---
+    print(f"Center: ({center_x}, {center_y})")
+    print(f"Bounds avec marge: minx={minx}, miny={miny}, maxx={maxx}, maxy={maxy}")
+    print(f"Largeur/Hauteur: {largeur:.0f} / {hauteur:.0f}")
+    print(f"Zoom: {zoom}")
+    print(f"Figure size: {fig_size}")
+    print(f"Source fond: {source_fond}")
+    # ------------------
+
+    fig, ax1 = configurer_carte(
+        source_fond,
+        center_x, center_y, max(largeur, hauteur),
+        zoom=zoom, fig_size=fig_size
+    )
+    
+    return fig, ax1
+
+
 
 
 def configurer_carte(basemap_type, center_x, center_y, height,width=None, zoom=6, fig_size=(13, 9)):

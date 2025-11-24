@@ -44,14 +44,45 @@ def calculer_simpson(df_input,col_valeur='nombreObs',cle_geo='codeMaille10Km',cl
     
 #Mesure de l'endémicité
 #Indice de Weighted Endemism (WE)
-def calculer_WE(df_input,col_valeur='nombreObs',cle_geo='codeMaille10Km',cle_ID='cdRef'):
-    grouped = df_input.groupby(cle_ID).agg(aire_repartition=('nombreObs_unique', 'sum'))
-    grouped['WE_prep']=1/grouped['aire_repartition']
-    df_input=pd.merge(df_input,grouped,on=cle_ID)
-    grouped_WE = df_input.groupby(cle_geo).agg(indice_d_endemisme=('WE_prep', 'sum'))
-        
-    return grouped_WE
+def calculer_WE(df_input, carte_maille, col_valeur='nombreObs', cle_geo='codeMaille10Km', cle_ID='speciesID'):
+    """
+    Calcule l'indice d'endémisme pondéré (WE) en tenant compte de l'aire réelle des cellules.
     
+    Parameters
+    ----------
+    df_input : pd.DataFrame
+        DataFrame avec au moins les colonnes [cle_geo, cle_ID].
+    carte_maille : pd.DataFrame
+        DataFrame avec les colonnes [cle_geo, 'area_km2'].
+    col_valeur : str
+        Nom de la colonne correspondant au nombre d'observations (non utilisée directement ici mais conservée).
+    cle_geo : str
+        Nom de la colonne identifiant les cellules.
+    cle_ID : str
+        Nom de la colonne identifiant les espèces.
+        
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame avec l'indice d'endémisme par cellule.
+    """
+    # Ajouter l'aire des cellules
+    df_input = pd.merge(df_input, carte_maille[[cle_geo, 'area_km2']], on=cle_geo, how='left')
+    
+    # Calculer l'aire totale de répartition par espèce
+    grouped = df_input.groupby(cle_ID).agg(aire_repartition=('area_km2', 'sum'))
+    
+    # Calculer WE pour chaque espèce
+    grouped['WE_prep'] = 1 / grouped['aire_repartition']
+    
+    # Fusionner l'indice WE avec le DataFrame
+    df_input = pd.merge(df_input, grouped[['WE_prep']], on=cle_ID, how='left')
+    
+    # Somme des WE par cellule
+    grouped_WE = df_input.groupby(cle_geo).agg(indice_d_endemisme=('WE_prep', 'sum'))
+    
+    return grouped_WE
+
 
 def calculer_margalev(df_input,col_valeur='nombreObs',cle_geo='codeMaille10Km',cle_ID='cdRef'):
     # On agrège pour avoir le nombre total d'observations par maille
@@ -179,12 +210,12 @@ def calculer_entropie_quadratique_taxo(df_input, col_valeur='nombreObs',
 
 
 
-def calculer_indices(df_input, col_valeur='nombreObs', cle_geo='codeMaille10Km', cle_ID='cdRef'):
+def calculer_indices(df_input,carte_maille, col_valeur='nombreObs', cle_geo='codeMaille10Km', cle_ID='cdRef'):
     groupes_nombre_especes = calculer_nombre_especes(df_input, cle_geo, cle_ID)
     groupes_nombre_observations = calculer_nombre_observations(df_input, cle_geo, cle_ID)
     grouped_shannon = calculer_shannon(df_input, col_valeur, cle_geo, cle_ID)
     grouped_simpson = calculer_simpson(df_input, col_valeur, cle_geo, cle_ID)
-    grouped_WE = calculer_WE(df_input, col_valeur, cle_geo, cle_ID)
+    grouped_WE = calculer_WE(df_input,carte_maille, col_valeur, cle_geo, cle_ID)
     grouped_margalev = calculer_margalev(df_input, col_valeur, cle_geo, cle_ID)
     grouped_eqSimpson = calculer_equitabilite_simpson(df_input, grouped_simpson, cle_geo, cle_ID)
     grouped_eqHeip = calculer_equitabilite_heip(df_input, grouped_shannon, cle_geo, cle_ID)
