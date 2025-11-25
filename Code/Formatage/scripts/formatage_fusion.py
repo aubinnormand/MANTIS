@@ -5,6 +5,7 @@ import time
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from formatage_ObsToGrid import generate_taxo_dict
+from formatage_geo import compute_area_grid
 
 def fusion_cells_by_obs(df_final, grid, cle_geo, var_obs, seuil=1000, methode="barycentre", max_distance=100, display=True):
     """
@@ -96,6 +97,8 @@ def fusion_cells_by_obs(df_final, grid, cle_geo, var_obs, seuil=1000, methode="b
     return gdf.reset_index(drop=True)
 
 def save_merged_grid(merged_fusion, path_data, zone, cle_geo, source, seuil_obs,seuil_species):
+    #recalculer les aires
+    merged_fusion=compute_area_grid(merged_fusion)
     
     # Colonnes à garder
     colonnes_a_garder = [cle_geo, "geometry",'area_km2']

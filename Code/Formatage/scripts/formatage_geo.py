@@ -214,7 +214,7 @@ def plot_country_grid(world_gdf, grid_gdf, name_attribute, country_name):
 
 
 def compute_area_grid(grid):
-                         # initialiser l'ellipsoïde WGS84 (le même qu’EPSG:4326)
+    # initialiser l'ellipsoïde WGS84 (le même qu’EPSG:4326)
     geod = Geod(ellps="WGS84")
     grid = grid.to_crs(epsg=4326)
     
