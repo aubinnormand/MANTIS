@@ -1,0 +1,13 @@
+# Ignorer tout sauf le dossier Code
+*
+
+# Mais garder le dossier Code et son contenu
+!Code/
+!Code/**
+
+# Ignorer les checkpoints de Jupyter
+.ipynb_checkpoints/
+
+# Ignorer le cache Python
+__pycache__/
+*.pyc
