@@ -300,6 +300,20 @@ def clean_gbif(df,annee_min=1950):
     for col in ['eventDate','occurrenceStatus','taxonRank']:
         if col in df.columns: df = df.drop(columns=col)
     return df
+
+def clean_inat(df,annee_min=1950):
+    df = df.copy()
+    df = _clean_dates(df, 'eventDate')
+    df = _clean_anneemin(df,annee_min)
+    df = _clean_coords(df, lon='lon', lat='lat')
+    df = _clean_occurrence(df)
+    df = _clean_taxonRank(df,var='taxonRank',rank=['SPECIES', 'VARIETY'])
+    df = _clean_ID(df, 'speciesID')
+    df = _clean_nombreObs(df)
+    # supprimer colonnes inutiles
+    for col in ['eventDate','occurrenceStatus','taxonRank']:
+        if col in df.columns: df = df.drop(columns=col)
+    return df
     
         
 def clean_inpn(df,annee_min=1950):
@@ -344,6 +358,8 @@ def clean_biodiv_data_source(df, source,annee_min=1950):
         return clean_inpn(df,annee_min)
     elif source == 'SILENE':
         return clean_silene(df,annee_min)
+    elif source == 'INAT':
+        return clean_inat(df,annee_min)
     else:
         raise ValueError(f"Source inconnue : {source}")
 

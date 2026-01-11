@@ -75,5 +75,20 @@ col_map = {
         "classe":"class",
         "ordre": "order",
         "famille": "family"
+    },
+    "INAT": {
+        "speciesKey": "speciesID",
+        "verbatimScientificName": "nom_valide",
+        "decimalLongitude": "lon",
+        "decimalLatitude": "lat",
+        "dateIdentified": "eventDate",
+        "kingdom":"kingdom",
+        "phylum": "phylum",
+        "class":"class",
+        "order": "order",
+        "family": "family",
+        "genus": "genus",
+        "occurrenceStatus":"occurrenceStatus",
+        "taxonRank": "taxonRank"
     }
 }
