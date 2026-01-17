@@ -20,7 +20,14 @@ colonnes_import = {
         "x_centroid_4326", "y_centroid_4326",
         "date_debut", "nombre_min",
         "classe", "ordre", "famille","regne"
-    ]
+    ],
+    "INAT": [
+        "speciesKey", "species", "occurrenceStatus",
+        "decimalLongitude", "decimalLatitude",
+        "eventDate", "year", "month", "individualCount",
+        "gridId", "grid_name", "taxonRank",
+        "kingdom", "phylum", "class","order", "family", "genus"
+    ],
 }
 
 

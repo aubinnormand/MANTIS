@@ -181,35 +181,47 @@ def plot_fusionned_grid(gdf, var_obs='nombreObs', title=None, cmap='viridis', fi
 
 def save_fusionned_biodiv(
     df_final,
+    dico_taxo,
     source,
     zone,
     cle_geo,
     path_data,
     seuil_obs,
-    seuil_species
+    seuil_species,
+    cle_ID='speciesID'
 ):
-    output_dir = path_data / "Biodiv"/source / "processed" / zone
+    """
+    Sauvegarde du dataframe fusionné complet et d'une version compactée
+    """
+    output_dir = path_data / "Biodiv" / source / "processed" / zone
     output_dir.mkdir(parents=True, exist_ok=True)
 
     base_name = f"{source}_{zone}_{cle_geo}_fused_minObs{seuil_obs}_minSp{seuil_species}"
 
-    # 📄 CSV
+    # ---------- CSV complet ----------
     csv_path = output_dir / f"{base_name}.csv"
     df_final.to_csv(csv_path, index=False)
 
-    # 📦 Parquet (compressé)
+    # ---------- Parquet complet (compressé) ----------
     parquet_path = output_dir / f"{base_name}.parquet"
-    df_final.to_parquet(
-        parquet_path,
-        engine="fastparquet",
-        compression="snappy"
+    df_final.to_parquet(parquet_path, engine="fastparquet")
+
+    # ---------- Parquet compacté ----------
+    compact_path = output_dir / f"{base_name}_compact.parquet"
+    df_compact = (
+        df_final.groupby([cle_geo, cle_ID, "month", "year"], as_index=False)
+                .agg(nombreObs=('nombreObs', 'sum'))
     )
+    df_compact = pd.merge(df_compact, dico_taxo, left_on=cle_ID, right_on=cle_ID, how='left')
 
-    print("🎉 Données nettoyées sauvegardées :")
-    print(f"   • CSV     → {csv_path}")
-    print(f"   • Parquet → {parquet_path}")
+    df_compact.to_parquet(compact_path, engine="fastparquet")
 
-    return csv_path, parquet_path
+    print("🎉 Données fusionnées sauvegardées :")
+    print(f"   • CSV complet      → {csv_path}")
+    print(f"   • Parquet complet  → {parquet_path}")
+    print(f"   • Parquet compacté → {compact_path}")
+
+    return csv_path
 
 
 

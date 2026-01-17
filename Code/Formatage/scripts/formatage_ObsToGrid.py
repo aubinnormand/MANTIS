@@ -83,21 +83,37 @@ def aggregate_by_grid_species(df_country, cle_geo, dico_taxo, cle_ID='speciesID'
 # -----------------------------
 # Sauvegarde
 # -----------------------------
-def save_processed_biodiv(df_final, source, zone, cle_geo, path_data):
+def save_processed_biodiv(df_final, dico_taxo,source, zone, cle_geo, path_data, cle_ID='speciesID'):
+    """
+    Sauvegarde du dataframe complet et d'une version compactée (par année et mois)
+    """
     output_dir = path_data / 'Biodiv' / source / 'processed' / zone
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # ---------- CSV ----------
+    # ---------- CSV complet ----------
     csv_path = output_dir / f"{source}_{zone}_{cle_geo}.csv"
     df_final.to_csv(csv_path, index=False)
 
-    # ---------- PARQUET ----------
+    # ---------- Parquet complet ----------
     parquet_path = output_dir / f"{source}_{zone}_{cle_geo}.parquet"
-    df_final.to_parquet(parquet_path, index=False)
+    df_final.to_parquet(parquet_path, index=False, engine="fastparquet")
+
+    # ---------- Parquet compacté ----------
+    compact_path = output_dir / f"{source}_{zone}_{cle_geo}_compact.parquet"
+
+    df_compact = (
+        df_final.groupby([cle_geo, cle_ID, "month", "year"], as_index=False)
+                .agg(nombreObs=('nombreObs', 'sum'))
+    )
+    df_compact = pd.merge(df_compact, dico_taxo, left_on=cle_ID, right_on=cle_ID, how='left')
+
+    df_compact.to_parquet(compact_path, index=False, engine="fastparquet")
 
     print("🎉 Données nettoyées sauvegardées :")
-    print(f"   📄 CSV     → {csv_path}")
-    print(f"   🧱 Parquet → {parquet_path}")
+    print(f"   📄 CSV complet      → {csv_path}")
+    print(f"   🧱 Parquet complet  → {parquet_path}")
+    print(f"   🧱 Parquet compacté → {compact_path}")
+
     return csv_path
 
 def process_biodiv_by_chunks(
